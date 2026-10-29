@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Classifier Log",
+    "columns": [
+      {
+        "name": "messageId",
+        "type": "string"
+      },
+      {
+        "name": "from",
+        "type": "string"
+      },
+      {
+        "name": "subject",
+        "type": "string"
+      },
+      {
+        "name": "category",
+        "type": "string"
+      },
+      {
+        "name": "confidence",
+        "type": "number"
+      },
+      {
+        "name": "jevChoice",
+        "type": "string"
+      },
+      {
+        "name": "source",
+        "type": "string"
+      },
+      {
+        "name": "model",
+        "type": "string"
+      },
+      {
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "name": "finalCategory",
+        "type": "string"
+      },
+      {
+        "name": "doubt",
+        "type": "boolean"
+      }
+    ]
+  },
+  {
+    "name": "Sender Rules",
+    "columns": [
+      {
+        "name": "pattern",
+        "type": "string"
+      },
+      {
+        "name": "mode",
+        "type": "string"
+      },
+      {
+        "name": "category",
+        "type": "string"
+      },
+      {
+        "name": "origin",
+        "type": "string"
+      },
+      {
+        "name": "hits",
+        "type": "number"
+      },
+      {
+        "name": "note",
+        "type": "string"
+      }
+    ]
+  }
+]

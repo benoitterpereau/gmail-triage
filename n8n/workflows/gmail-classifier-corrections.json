@@ -1,0 +1,569 @@
+{
+  "name": "✏️ Gmail Triage — corrections",
+  "active": false,
+  "nodes": [
+    {
+      "id": "0f168511-3a2d-5bde-a7ee-ce85869e9607",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "798eb79d-a419-53dc-808e-9e2f176472a6",
+      "name": "Recent emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "q": "newer_than:8d -in:sent -in:chats -in:drafts"
+        },
+        "options": {}
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "10be5e38-bcb1-544f-9605-0c0337beea65",
+      "name": "Open log rows",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Classifier Log",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "open"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "41a92779-51d1-5cad-bc1a-9b54eca3bf96",
+      "name": "Compare labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const L = $('Label ids').first().json;\nconst TRIAGE = Object.fromEntries(Object.entries(L.triage).map(([role, id]) => [id, role]));   // label id → role\nconst DOUBT = L.doubt;\nconst DAY = 24 * 3600 * 1000, now = Date.now();\n// The simplified Gmail output may carry labels as [{id, name}] instead of labelIds\nconst emails = $('Recent emails').all().map(i => i.json).filter(m => m.id)\n  .map(m => ({ ...m, labelIds: m.labelIds ?? m.labels?.map(l => l.id) }));\n// Never guess: without labels, every row would look 'removed'\nif (emails.some(m => !Array.isArray(m.labelIds))) throw new Error('Gmail search returned emails without labels');\nconst byId = new Map(emails.map(m => [m.id, m]));\nconst out = [];\nfor (const row of $('Open log rows').all().map(i => i.json).filter(r => r.id && r.messageId)) {\n  const age = (now - new Date(row.createdAt).getTime()) / DAY;\n  const email = byId.get(row.messageId);\n  let status = null, finalCategory = row.category;\n  if (!email) {\n    // Out of the search window, trashed or spam: give up once it can no longer show up\n    if (age > 9) { status = 'expired'; finalCategory = ''; }\n  } else {\n    const labels = email.labelIds.filter(id => id in TRIAGE).map(id => TRIAGE[id]);\n    const others = labels.filter(l => l !== row.category);\n    if (!labels.length) { status = 'removed'; finalCategory = ''; }\n    else if (others.length) { status = 'corrected'; finalCategory = others.join(', '); }\n    else if (row.doubt && !email.labelIds.includes(DOUBT)) status = 'confirmed';   // flag removed, label kept\n    else if (age >= 7) status = 'confirmed';                          // untouched for a week\n  }\n  if (status) out.push({ json: { id: row.id, status, finalCategory } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "72f0ec14-73cf-52a8-8a10-62ea368d04e1",
+      "name": "Update log",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Classifier Log",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "finalCategory": "={{ $json.finalCategory }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "finalCategory",
+              "displayName": "finalCategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9a979cb4-aa33-57c2-865a-8c03a0316a97",
+      "name": "Gmail labels",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "resource": "label",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "12a2f1e6-403d-52c1-994d-ecccd75efdbb",
+      "name": "Label ids",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const WANT = {\"triage\": {\"To respond\": \"To respond\", \"Awaiting reply\": \"Awaiting reply\", \"Meeting update\": \"Meeting update\", \"Comment\": \"Comment\", \"Notification\": \"Notification\", \"FYI\": \"FYI\", \"Actioned\": \"Actioned\", \"Newsletter\": \"Newsletter\", \"Marketing\": \"Marketing\", \"Digest\": \"Digest\"}, \"doubt\": \"🤖 To Check\", \"forceAi\": \"🤖 Force AI\"};   // {triage: {role: label name}, doubt: name, forceAi: name}\nconst byName = new Map($input.all().map(i => [String(i.json.name).toLowerCase(), i.json.id]));\nconst id = (name) => byName.get(name.toLowerCase());\nconst missing = [...Object.values(WANT.triage), WANT.doubt, WANT.forceAi].filter(n => !id(n));\nif (missing.length) throw new Error('Missing Gmail labels: ' + missing.join(', '));\nreturn [{ json: {\n  triage: Object.fromEntries(Object.entries(WANT.triage).map(([role, name]) => [role, id(name)])),\n  doubt: id(WANT.doubt), forceAi: id(WANT.forceAi) } }];"
+      }
+    },
+    {
+      "id": "7535acbd-ef9a-5333-a8ff-0b072a5ab112",
+      "name": "Flagged Force AI",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "labelIds": "={{ [$('Label ids').first().json.forceAi] }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9de69f4a-71f5-54b3-b71b-bd6f99ed34d5",
+      "name": "One per sender",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "jsCode": "const seen = new Set();\nreturn $input.all().map(i => (i.json.from?.value?.[0]?.address || '').trim().toLowerCase())\n  .filter(a => a && !seen.has(a) && seen.add(a))\n  .map(pattern => ({ json: { pattern } }));"
+      }
+    },
+    {
+      "id": "5090ce99-3034-5464-99c6-3c1d1272eebb",
+      "name": "Has a rule",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        660,
+        520
+      ],
+      "parameters": {
+        "operation": "rowExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Sender Rules",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pattern",
+              "keyValue": "={{ $json.pattern }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "75a6a7ac-e3ad-55dc-a0c0-811d5ce252ae",
+      "name": "Switch rule to llm",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        880,
+        520
+      ],
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Sender Rules",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pattern",
+              "keyValue": "={{ $json.pattern }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "mode": "llm",
+            "category": "",
+            "origin": "manual",
+            "note": "Force AI label in Gmail"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "origin",
+              "displayName": "origin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2aad390e-a05e-5cfa-9c69-9916eebec358",
+      "name": "No rule yet",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        660,
+        680
+      ],
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Sender Rules",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pattern",
+              "keyValue": "={{ $json.pattern }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "96521880-1cdc-5e02-b000-5cdf594a36b2",
+      "name": "Add llm rule",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        880,
+        680
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "Sender Rules",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "pattern": "={{ $json.pattern }}",
+            "mode": "llm",
+            "category": "",
+            "origin": "manual",
+            "note": "Force AI label in Gmail"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "pattern",
+              "displayName": "pattern",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "origin",
+              "displayName": "origin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "88779cfb-6198-5dfe-987b-a80ace341d50",
+      "name": "Remove flag",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        860
+      ],
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": "={{ [$('Label ids').first().json.forceAi] }}"
+      }
+    }
+  ],
+  "connections": {
+    "Gmail labels": {
+      "main": [
+        [
+          {
+            "node": "Label ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Gmail labels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Recent emails",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Flagged Force AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent emails": {
+      "main": [
+        [
+          {
+            "node": "Open log rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open log rows": {
+      "main": [
+        [
+          {
+            "node": "Compare labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare labels": {
+      "main": [
+        [
+          {
+            "node": "Update log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flagged Force AI": {
+      "main": [
+        [
+          {
+            "node": "One per sender",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One per sender": {
+      "main": [
+        [
+          {
+            "node": "Has a rule",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "No rule yet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a rule": {
+      "main": [
+        [
+          {
+            "node": "Switch rule to llm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No rule yet": {
+      "main": [
+        [
+          {
+            "node": "Add llm rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

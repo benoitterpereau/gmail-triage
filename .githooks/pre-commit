@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks secrets and account identifiers (see tools/guard.py)
+exec python3 "$(git rev-parse --show-toplevel)/tools/guard.py" --staged

@@ -1,0 +1,22 @@
+{
+  "credentials": {},
+  "dataTables": {
+    "senderRules": "Sender Rules",
+    "classifierLog": "Classifier Log"
+  },
+  "labels": {
+    "To respond": "To respond",
+    "Awaiting reply": "Awaiting reply",
+    "Meeting update": "Meeting update",
+    "Comment": "Comment",
+    "Notification": "Notification",
+    "FYI": "FYI",
+    "Actioned": "Actioned",
+    "Newsletter": "Newsletter",
+    "Marketing": "Marketing",
+    "Digest": "Digest"
+  },
+  "doubtLabel": "🤖 To Check",
+  "forceAiLabel": "🤖 Force AI",
+  "digestSubjects": []
+}

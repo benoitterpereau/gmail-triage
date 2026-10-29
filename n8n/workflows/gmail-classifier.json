@@ -1,0 +1,1377 @@
+{
+  "name": "✉️ Gmail Triage — classifier",
+  "active": false,
+  "nodes": [
+    {
+      "id": "cef367a6-fc66-5214-b92a-fea06e59346e",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      }
+    },
+    {
+      "id": "13798031-a2ea-5f66-b403-311bd88cffa5",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d0719930-f2c4-5737-9489-b8613cd7326f",
+      "name": "Unlabelled emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "q": "newer_than:2h -in:sent -in:chats -in:drafts -label:to-respond -label:awaiting-reply -label:meeting-update -label:comment -label:notification -label:fyi -label:actioned -label:newsletter -label:marketing -label:digest"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c5aef544-7ca8-553a-adf2-fd834061ddf0",
+      "name": "Settled",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "488b1d65-4f85-59b6-817c-caee68982a91",
+              "leftValue": "={{ Number($json.internalDate) }}",
+              "rightValue": "={{ Date.now() - 300000 }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f3b1a1a5-9cc8-5fba-805d-a8c254e26d5a",
+      "name": "Digest?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4ed001a6-2680-5f95-80b4-424f4585fb48",
+      "name": "Not a digest",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a10e7edc-f7e3-505f-a24b-8c8ed6ca2768",
+      "name": "Label Digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": "={{ $('Label ids').first().json.triage.Digest }}"
+      }
+    },
+    {
+      "id": "9afbe7d0-6d8e-55b7-ae51-e32916e331fb",
+      "name": "Get a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "21d160e2-8f2d-50a2-b446-0fbc0636ef1a",
+      "name": "Not labelled yet",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        550,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8985dd6b-2a92-5425-9a57-1aab3585a431",
+              "leftValue": "={{ !($json.labelIds || []).some(id => Object.values($('Label ids').first().json.triage).includes(id)) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "937daeb0-6142-5f03-b7a7-d8687fbbc421",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9b95b98e-5c03-5ada-9923-f6b579a1ca54",
+              "name": "messageId",
+              "type": "string",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "id": "0c010157-3fbf-5600-a7bc-22efa799a09d",
+              "name": "from",
+              "type": "string",
+              "value": "={{ ($json.from?.value?.[0]?.address || '').toLowerCase() }}"
+            },
+            {
+              "id": "35f89716-f97e-50d0-a433-e9afe2c7f2e5",
+              "name": "fromDomain",
+              "type": "string",
+              "value": "={{ '@' + (($json.from?.value?.[0]?.address || '').toLowerCase().split('@')[1] || '') }}"
+            },
+            {
+              "id": "109cc346-461a-5d8e-a7d4-d5a53dcc0712",
+              "name": "fromName",
+              "type": "string",
+              "value": "={{ $json.from?.value?.[0]?.name || '' }}"
+            },
+            {
+              "id": "63c91d8e-2bfe-591e-b93f-ebc82c13de07",
+              "name": "to",
+              "type": "string",
+              "value": "={{ $json.to?.text || '' }}"
+            },
+            {
+              "id": "e5876b12-98af-52dd-9ed3-ca96140c5e38",
+              "name": "subject",
+              "type": "string",
+              "value": "={{ $json.subject || '' }}"
+            },
+            {
+              "id": "d2ecef0d-ce28-5137-a14d-72939c5ad466",
+              "name": "date",
+              "type": "string",
+              "value": "={{ $json.date || '' }}"
+            },
+            {
+              "id": "f9aca4e0-e2e9-5ec7-859d-066505cfe09e",
+              "name": "hasUnsubscribeLink",
+              "type": "boolean",
+              "value": "={{ !!$json.headers?.['list-unsubscribe'] }}"
+            },
+            {
+              "id": "a7a828b3-d771-5ef7-9f98-0ad051c33b2d",
+              "name": "body",
+              "type": "string",
+              "value": "={{ ((strip) => [strip($json.text).trim() && $json.text, strip($json.html), $json.snippet].find(s => s && s.trim()) || '')(s => (s || '').replace(/<style[\\s\\S]*?<\\/style>|<script[\\s\\S]*?<\\/script>/gi, ' ').replace(/<[^>]+>/g, ' ')).replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&(#39|apos);/g, \"'\").replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim().slice(0, 6000) }}"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      }
+    },
+    {
+      "id": "935bd699-635c-5603-b117-663d691e56ac",
+      "name": "Load sender rules",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        440,
+        220
+      ],
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Sender Rules",
+          "mode": "name"
+        },
+        "returnAll": true
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "742f73c9-ec41-52c7-a0d7-398b03c74e73",
+      "name": "Load corrections",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        660,
+        220
+      ],
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "Classifier Log",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "keyValue": "corrected"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f5a2d9f5-0103-538c-a57e-b6c7d4d40da5",
+      "name": "Match sender rule",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const rules = $('Load sender rules').all().map(i => i.json).filter(r => r.pattern);\nconst corrections = $('Load corrections').all().map(i => i.json).filter(r => r.from && r.finalCategory)\n  .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));\nconst history = (from) => {\n  const past = corrections.filter(r => r.from === from).slice(0, 5);\n  return past.length ? 'The recipient corrected the label of earlier emails from this sender:\\n'\n    + past.map(r => `- \"${r.subject}\": ${r.category} → ${r.finalCategory}`).join('\\n') : '';\n};\nconst best = (key) => rules\n  .filter(r => String(r.pattern).trim().toLowerCase() === key)\n  .sort((a, b) => (a.origin === 'manual' ? 0 : 1) - (b.origin === 'manual' ? 0 : 1))[0];\nreturn $input.all().map((item, i) => {\n  const rule = best(item.json.from) || best(item.json.fromDomain);\n  return {\n    json: { ...item.json, ruleMode: rule?.mode || 'none', ruleCategory: rule?.category || '', rulePattern: rule?.pattern || '',\n            senderHistory: history(item.json.from) },\n    pairedItem: { item: i },\n  };\n});"
+      }
+    },
+    {
+      "id": "da9102b3-1688-5ecc-b626-9bff1d06db45",
+      "name": "Fixed rule?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "17a3e18a-c8cd-5a40-8c29-f90c54a730a6",
+              "leftValue": "={{ $json.ruleMode }}",
+              "rightValue": "fixed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c1862cc0-fa54-55cc-a97f-5d1c74a85b7d",
+              "leftValue": "={{ [\"To respond\", \"Meeting update\", \"Comment\", \"Notification\", \"FYI\", \"Actioned\", \"Newsletter\", \"Marketing\"].includes($json.ruleCategory) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5790e764-5224-53da-9e75-83057853c4e3",
+      "name": "Rule result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1540,
+        550
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9b6691bf-07c5-5aa5-884f-23f48c1b879a",
+              "name": "category",
+              "type": "string",
+              "value": "={{ $json.ruleCategory }}"
+            },
+            {
+              "id": "ebcf5498-f1f1-5968-862e-fb8b6992f07c",
+              "name": "source",
+              "type": "string",
+              "value": "rule"
+            },
+            {
+              "id": "d451f6de-2f4b-501c-83f3-8bf224170102",
+              "name": "model",
+              "type": "string",
+              "value": "={{ 'rule:' + $json.rulePattern }}"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      }
+    },
+    {
+      "id": "f0014a33-9c28-5205-94ec-27b5de837395",
+      "name": "Jev",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.typesafe.ai/v1/systemone",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"jev-1.13.0\", state: { from: $json.fromName ? $json.fromName + ' <' + $json.from + '>' : $json.from, to: $json.to, subject: $json.subject, date: $json.date, has_unsubscribe_link: $json.hasUnsubscribeLink, body: $json.body, ...($json.senderHistory ? { sender_history: $json.senderHistory } : {}) }, questions: {\"category\": {\"type\": \"choice\", \"instructions\": \"Pick the triage label for this email, from the point of view of its recipient. When several labels fit, pick the one that comes first in this priority order: To respond, Meeting update, Comment, Notification, FYI, Actioned, Newsletter, Marketing.\", \"criteria\": {\"To respond\": \"Requires a reply or an action from the recipient: a named person writes directly to the recipient by email (even from a company: personal invitation, follow-up, introduction, request, link to book a meeting slot, startup founder pitching their fundraising, question asked in a LinkedIn or platform conversation the recipient already takes part in), or an automated message requires action (failed payment, invoice or request to validate, document to sign, deadline, account action required). A verification or login code is not an action. Unsolicited sales or paid-study outreach is Marketing, even when written by a named person.\", \"Meeting update\": \"Calendar invitation or change for a meeting the recipient takes part in: invite, acceptance, decline, reschedule, cancellation, or video-call details. Not webinars or events promoted to a mailing list.\", \"Comment\": \"Mention or comment notification from a collaborative tool (Jira, Confluence, Notion, Google Docs, Figma, GitHub...).\", \"Notification\": \"Automated message from a system or service that requires no action: verification or login code, security alert, receipt, paid invoice, shipping, event registration confirmation, account, service or status update, emoji reaction to an email ('X reacted via Gmail'), or social network alert (connection request, new follower, job alert, 'you have a new message'), even when it quotes a personal note from someone, unless that note asks the recipient something in a conversation they already take part in.\", \"FYI\": \"Message written by a person to share information; no reply or action expected.\", \"Actioned\": \"Confirms that a request, booking or conversation is done, settled or acknowledged ('noted', 'done', 'see you later'); nothing left to do.\", \"Newsletter\": \"Editorial or recurring content from a publication or creator the recipient subscribed to (articles, news, curated tips), even when it features products, shops or deals.\", \"Marketing\": \"Mass email from a brand or service promoting its own products, offers, programmes or content (including welcome and onboarding emails after a sign-up), cold sales outreach or paid survey or research solicitation (even written and signed by a named person), or invitation to a webinar, live session or event sent to a mailing list (even signed by the organiser).\"} } } }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "46611b24-df4d-5c28-823a-8f44a4c8814e",
+      "name": "Confident?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        250
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e3cf9b47-49b2-5937-8102-6ddf8c7786c0",
+              "leftValue": "={{ $json.answers?.category?.confidence ?? 0 }}",
+              "rightValue": 0.6,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "59303268-1eff-5808-b6e4-8e61a2b21da4",
+      "name": "Jev result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        150
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb777afa-423f-5c8b-9e96-688cbb976dcb",
+              "name": "category",
+              "type": "string",
+              "value": "={{ $json.answers.category.choice }}"
+            },
+            {
+              "id": "b8296441-8142-572c-8653-1c3ca67db005",
+              "name": "confidence",
+              "type": "number",
+              "value": "={{ $json.answers.category.confidence }}"
+            },
+            {
+              "id": "e7bb3bc0-5a21-546f-a9c1-a6dba96763ce",
+              "name": "jevChoice",
+              "type": "string",
+              "value": "={{ $json.answers.category.choice }}"
+            },
+            {
+              "id": "3fa1388b-e0cf-5c2c-9df5-aeacd82884e8",
+              "name": "source",
+              "type": "string",
+              "value": "jev"
+            },
+            {
+              "id": "a5ea7d5e-ad3b-5146-9a88-409fdb4bddc2",
+              "name": "model",
+              "type": "string",
+              "value": "={{ $json.model }}"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      }
+    },
+    {
+      "id": "f8f24159-697e-5ea3-9218-21c46178c770",
+      "name": "Mistral fallback",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        400
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify the following email.\n\nFrom: {{ $('Prepare').item.json.fromName }} <{{ $('Prepare').item.json.from }}>\nSubject: {{ $('Prepare').item.json.subject }}\n\n{{ $('Prepare').item.json.body }}{{ $('Match sender rule').item.json.senderHistory ? '\\n\\n' + $('Match sender rule').item.json.senderHistory : '' }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an email triage engine. Assign exactly ONE category to the email.\n\nCategories are mutually exclusive. When several fit, choose the highest priority one.\n\nCategory priority (highest to lowest):\nTo respond\nMeeting update\nComment\nNotification\nFYI\nActioned\nNewsletter\nMarketing\n\nCategory definitions:\nTo respond: Requires a reply or an action from the recipient: a named person writes directly to the recipient by email (even from a company: personal invitation, follow-up, introduction, request, link to book a meeting slot, startup founder pitching their fundraising, question asked in a LinkedIn or platform conversation the recipient already takes part in), or an automated message requires action (failed payment, invoice or request to validate, document to sign, deadline, account action required). A verification or login code is not an action. Unsolicited sales or paid-study outreach is Marketing, even when written by a named person.\nMeeting update: Calendar invitation or change for a meeting the recipient takes part in: invite, acceptance, decline, reschedule, cancellation, or video-call details. Not webinars or events promoted to a mailing list.\nComment: Mention or comment notification from a collaborative tool (Jira, Confluence, Notion, Google Docs, Figma, GitHub...).\nNotification: Automated message from a system or service that requires no action: verification or login code, security alert, receipt, paid invoice, shipping, event registration confirmation, account, service or status update, emoji reaction to an email ('X reacted via Gmail'), or social network alert (connection request, new follower, job alert, 'you have a new message'), even when it quotes a personal note from someone, unless that note asks the recipient something in a conversation they already take part in.\nFYI: Message written by a person to share information; no reply or action expected.\nActioned: Confirms that a request, booking or conversation is done, settled or acknowledged ('noted', 'done', 'see you later'); nothing left to do.\nNewsletter: Editorial or recurring content from a publication or creator the recipient subscribed to (articles, news, curated tips), even when it features products, shops or deals.\nMarketing: Mass email from a brand or service promoting its own products, offers, programmes or content (including welcome and onboarding emails after a sign-up), cold sales outreach or paid survey or research solicitation (even written and signed by a named person), or invitation to a webinar, live session or event sent to a mailing list (even signed by the organiser)."
+        }
+      }
+    },
+    {
+      "id": "30727429-d521-529b-8849-90308c4977bd",
+      "name": "Mistral Cloud Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        600
+      ],
+      "parameters": {
+        "model": "mistral-medium-latest",
+        "options": {
+          "temperature": 0
+        }
+      }
+    },
+    {
+      "id": "50cc27e9-6ce0-51a3-a51b-93d8fd47fb7e",
+      "name": "Category parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1880,
+        600
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"category\"\n  ],\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"To respond\",\n        \"Meeting update\",\n        \"Comment\",\n        \"Notification\",\n        \"FYI\",\n        \"Actioned\",\n        \"Newsletter\",\n        \"Marketing\"\n      ]\n    }\n  }\n}"
+      }
+    },
+    {
+      "id": "e25857fc-a5eb-56a6-be4c-1c046a0521c9",
+      "name": "Mistral result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2080,
+        400
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4f5a4408-bded-5401-a2b3-5b7b23646b2f",
+              "name": "category",
+              "type": "string",
+              "value": "={{ $json.output.category }}"
+            },
+            {
+              "id": "f1675d2d-6ec1-5aea-8b10-f0c7bf32f5c7",
+              "name": "confidence",
+              "type": "number",
+              "value": "={{ $('Jev').item.json.answers?.category?.confidence ?? null }}"
+            },
+            {
+              "id": "e484163a-bfd9-5929-9b5e-23f970d3a488",
+              "name": "jevChoice",
+              "type": "string",
+              "value": "={{ $('Jev').item.json.answers?.category?.choice ?? 'error' }}"
+            },
+            {
+              "id": "b683088e-67a1-5db1-9687-d9c1be7d28e0",
+              "name": "source",
+              "type": "string",
+              "value": "mistral"
+            },
+            {
+              "id": "85f11f42-5309-5d1d-a4b2-919fe488c5ef",
+              "name": "model",
+              "type": "string",
+              "value": "mistral-medium-latest"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      }
+    },
+    {
+      "id": "9379360a-3f9b-53dc-b0ea-7599dac4c14f",
+      "name": "Label",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2300,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4074f78f-fe04-52f8-92f6-429da8f82f8f",
+              "name": "labelId",
+              "type": "string",
+              "value": "={{ $('Label ids').first().json.triage[$json.category] ?? $('Label ids').first().json.triage.FYI }}"
+            },
+            {
+              "id": "6118dbac-2f98-52de-92bf-93102a488d5b",
+              "name": "doubt",
+              "type": "boolean",
+              "value": "={{ $json.source === 'mistral' && !!$json.jevChoice && $json.jevChoice !== 'error' && $json.jevChoice !== $json.category }}"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        },
+        "includeOtherFields": true
+      }
+    },
+    {
+      "id": "f7058167-7aca-5c44-8715-19c512d977a6",
+      "name": "Add label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2520,
+        300
+      ],
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Prepare').item.json.messageId }}",
+        "labelIds": "={{ $json.labelId }}"
+      }
+    },
+    {
+      "id": "0b3ecf4a-2d73-5817-89ea-e8d8e42ff47c",
+      "name": "Log",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        2740,
+        150
+      ],
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "Classifier Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "messageId": "={{ $('Prepare').item.json.messageId }}",
+            "from": "={{ $('Prepare').item.json.from }}",
+            "subject": "={{ $('Prepare').item.json.subject.slice(0, 200) }}",
+            "category": "={{ $('Label').item.json.category }}",
+            "confidence": "={{ $('Label').item.json.confidence ?? null }}",
+            "jevChoice": "={{ $('Label').item.json.jevChoice ?? '' }}",
+            "source": "={{ $('Label').item.json.source }}",
+            "model": "={{ $('Label').item.json.model ?? '' }}",
+            "status": "open",
+            "doubt": "={{ !!$('Label').item.json.doubt }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "messageId",
+              "displayName": "messageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "from",
+              "displayName": "from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "jevChoice",
+              "displayName": "jevChoice",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "model",
+              "displayName": "model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "doubt",
+              "displayName": "doubt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c879c845-ebe9-5afb-9a6b-1cc60e6e6c31",
+      "name": "Mark as read?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        2740,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d737dbb3-3630-5f10-b007-b61a1d035c00",
+                    "leftValue": "={{ $('Label').item.json.category }}",
+                    "rightValue": "Marketing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "b687874e-72a0-552f-8ef3-a8bb127079cf",
+                    "leftValue": "={{ !$('Label').item.json.doubt }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Marketing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1c8303fd-b680-544b-939f-b590bbf1479d",
+                    "leftValue": "={{ $('Label').item.json.category }}",
+                    "rightValue": "Meeting update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "b687874e-72a0-552f-8ef3-a8bb127079cf",
+                    "leftValue": "={{ !$('Label').item.json.doubt }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Meeting update"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f7fd9dc6-2e3c-5b4e-a3e3-66b7cf23bdaa",
+                    "leftValue": "={{ $('Label').item.json.category }}",
+                    "rightValue": "Newsletter",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "b687874e-72a0-552f-8ef3-a8bb127079cf",
+                    "leftValue": "={{ !$('Label').item.json.doubt }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Newsletter"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d52cbca6-c305-580d-a81c-3ecce2f2a47b",
+      "name": "Mark as read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2960,
+        400
+      ],
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Prepare').item.json.messageId }}"
+      }
+    },
+    {
+      "id": "638be359-97dc-55d2-aa9d-0a8ddfd0a095",
+      "name": "Doubt?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2740,
+        650
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "36a6a8b8-d9e5-5d3b-be3b-9b0d9d20761b",
+              "leftValue": "={{ $('Label').item.json.doubt }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3e4552d3-cfe3-56c3-b926-a9f342e67aba",
+      "name": "Flag for review",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2960,
+        650
+      ],
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Prepare').item.json.messageId }}",
+        "labelIds": "={{ $('Label ids').first().json.doubt }}"
+      }
+    },
+    {
+      "id": "e440bf72-0468-5e3b-b71b-fe736ab0e91d",
+      "name": "Gmail labels",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        -100
+      ],
+      "parameters": {
+        "resource": "label",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "503c36be-626e-50de-8f82-eb0878e249aa",
+      "name": "Label ids",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "const WANT = {\"triage\": {\"To respond\": \"To respond\", \"Awaiting reply\": \"Awaiting reply\", \"Meeting update\": \"Meeting update\", \"Comment\": \"Comment\", \"Notification\": \"Notification\", \"FYI\": \"FYI\", \"Actioned\": \"Actioned\", \"Newsletter\": \"Newsletter\", \"Marketing\": \"Marketing\", \"Digest\": \"Digest\"}, \"doubt\": \"🤖 To Check\", \"forceAi\": \"🤖 Force AI\"};   // {triage: {role: label name}, doubt: name, forceAi: name}\nconst byName = new Map($input.all().map(i => [String(i.json.name).toLowerCase(), i.json.id]));\nconst id = (name) => byName.get(name.toLowerCase());\nconst missing = [...Object.values(WANT.triage), WANT.doubt, WANT.forceAi].filter(n => !id(n));\nif (missing.length) throw new Error('Missing Gmail labels: ' + missing.join(', '));\nreturn [{ json: {\n  triage: Object.fromEntries(Object.entries(WANT.triage).map(([role, name]) => [role, id(name)])),\n  doubt: id(WANT.doubt), forceAi: id(WANT.forceAi) } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Mistral fallback",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Category parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Mistral fallback",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail labels": {
+      "main": [
+        [
+          {
+            "node": "Label ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Gmail labels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Digest?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Not a digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Unlabelled emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unlabelled emails": {
+      "main": [
+        [
+          {
+            "node": "Settled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settled": {
+      "main": [
+        [
+          {
+            "node": "Gmail labels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Digest?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Not a digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest?": {
+      "main": [
+        [
+          {
+            "node": "Label Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not a digest": {
+      "main": [
+        [
+          {
+            "node": "Load sender rules",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load sender rules": {
+      "main": [
+        [
+          {
+            "node": "Load corrections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Not labelled yet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not labelled yet": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Match sender rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match sender rule": {
+      "main": [
+        [
+          {
+            "node": "Fixed rule?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixed rule?": {
+      "main": [
+        [
+          {
+            "node": "Rule result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Jev",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jev": {
+      "main": [
+        [
+          {
+            "node": "Confident?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mistral fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confident?": {
+      "main": [
+        [
+          {
+            "node": "Jev result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mistral fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral fallback": {
+      "main": [
+        [
+          {
+            "node": "Mistral result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jev result": {
+      "main": [
+        [
+          {
+            "node": "Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral result": {
+      "main": [
+        [
+          {
+            "node": "Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule result": {
+      "main": [
+        [
+          {
+            "node": "Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label": {
+      "main": [
+        [
+          {
+            "node": "Add label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add label": {
+      "main": [
+        [
+          {
+            "node": "Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark as read?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Doubt?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doubt?": {
+      "main": [
+        [
+          {
+            "node": "Flag for review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as read?": {
+      "main": [
+        [
+          {
+            "node": "Mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

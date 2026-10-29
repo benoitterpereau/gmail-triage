@@ -1,0 +1,3 @@
+n8n/config.local.json
+n8n/dist/
+.env
